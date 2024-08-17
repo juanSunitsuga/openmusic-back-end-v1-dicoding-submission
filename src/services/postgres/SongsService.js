@@ -1,7 +1,6 @@
-const {nanoid} = require('nanoid');
-const {Pool} = require('pg');
+const { nanoid } = require('nanoid');
+const { Pool } = require('pg');
 const InvariantError = require('../../exceptions/InvariantError');
-const {filterPerformerSongByParam, filterTitleSongByParam, mapSongDB} = require('../../utils');
 const NotFoundError = require('../../exceptions/NotFoundError');
 
 class SongsService {
@@ -9,7 +8,7 @@ class SongsService {
         this._pool = new Pool();
     }
 
-    async addSong({title, year, genre, performer, duration, albumId}) {
+    async addSong({ title, year, genre, performer, duration, albumId }) {
         const id = `song-${nanoid(16)}`;
 
         const query = {
@@ -20,52 +19,62 @@ class SongsService {
         const fetch = await this._pool.query(query);
 
         if (!fetch.rows[0].id) {
-            throw new InvariantError('Album gagal ditambahkan');
+            throw new InvariantError('Lagu gagal ditambahkan');
         }
 
         return fetch.rows[0].id;
     }
 
     async getSongs(params) {
-        const query = {
-            text: 'SELECT id, title, performer FROM songs'
+        const { title, performer } = params;
+        let query = {
+            text: 'SELECT id, title, performer FROM songs',
+            values: [],
         };
-        const fetch = await this._pool.query(query);
-        const songs = fetch.rows;
-        let filteredSong = songs;
-        if ('title' in params) {
-            filteredSong = filteredSong.filter((s) => filterTitleSongByParam(s, params.title));
+
+        const conditions = [];
+        if (title) {
+            conditions.push(`title ILIKE $${conditions.length + 1}`);
+            query.values.push(`%${title}%`);
         }
-        if ('performer' in params) {
-            filteredSong = filteredSong.filter((s) => filterPerformerSongByParam(s, params.performer));
+        if (performer) {
+            conditions.push(`performer ILIKE $${conditions.length + 1}`);
+            query.values.push(`%${performer}%`);
         }
 
-        return filteredSong;
+        if (conditions.length > 0) {
+            query.text += ` WHERE ${conditions.join(' AND ')}`;
+        }
+
+        const fetch = await this._pool.query(query);
+        return fetch.rows;
     }
 
     async getSongById(id) {
         const query = {
             text: 'SELECT * FROM songs WHERE id = $1',
-            values: [id]
+            values: [id],
         };
         const fetch = await this._pool.query(query);
 
         if (!fetch.rows.length) {
             throw new NotFoundError('Lagu tidak ditemukan');
         }
-        return fetch.rows.map(mapSongDB)[0];
+        return fetch.rows[0];
     }
 
-    async editSongById(id, {title, year, performer, genre, duration}) {
+    async editSongById(id, { title, year, performer, genre, duration }) {
         const query = {
             text: 'UPDATE songs SET title = $1, year = $2, performer = $3, genre = $4, duration = $5 WHERE id = $6 RETURNING id',
-            values: [title, year, performer, genre, duration, id]
+            values: [title, year, performer, genre, duration, id],
         };
         const fetch = await this._pool.query(query);
 
         if (!fetch.rows.length) {
             throw new NotFoundError('Gagal memperbarui lagu. Id tidak ditemukan');
         }
+
+        return fetch.rows[0].id;
     }
 
     async deleteSongById(id) {
