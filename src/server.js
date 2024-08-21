@@ -41,7 +41,6 @@ const init = async () => {
         },
     ]);
 
-    // Adding onPreResponse extension for centralized error handling
     server.ext('onPreResponse', (request, h) => {
         const { response } = request;
 
@@ -54,11 +53,9 @@ const init = async () => {
             return newResponse;
         }
 
-        // Continue with the existing response if it's not a ClientError
         return response.continue || response;
     });
 
-    // Start the server
     await server.start();
     console.log(`Server berjalan pada ${server.info.uri}`);
 };
